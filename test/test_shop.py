@@ -6,8 +6,8 @@ from bson.objectid import ObjectId
 from starlette import status
 from geo.repository import ShopRepo
 from geo.model import Shop
-
 from main import app
+
 
 TEST_MONGO_URL = 'mongodb://localhost:27017'
 test_client = AsyncIOMotorClient(TEST_MONGO_URL)
