@@ -1,76 +1,96 @@
 import json
-import requests
+import pytest
+from fastapi.testclient import TestClient
+from motor.motor_asyncio import AsyncIOMotorClient
+from bson.objectid import ObjectId
+from starlette import status
+from geo.repository import ShopRepo
+from geo.model import Shop
 
-ENDPOINT = "http://127.0.0.1:8000"
+from main import app
 
+TEST_MONGO_URL = 'mongodb://localhost:27017'
+test_client = AsyncIOMotorClient(TEST_MONGO_URL)
+override_database = test_client.test_db
 
-def test_can_call_endpoint():
-	response = requests.get(ENDPOINT)
-	assert response.status_code == 200
+client = TestClient(app)
 
+@pytest.fixture
+def shop_data():
+    data = {
+        "name": "test_name",
+        "latitude": 0,
+        "longitude": 0,
+        "address": "string",
+        "city": "string"
+    }
+    return data
 
-def test_can_create_shop():
-	payload = new_shop_payload
-	create_shop_response = create_shop(payload)
-	assert create_shop_response.status_code == 201
-	data = create_shop_response.json()
-	print(data)
-
-	shop_id = data['id']
-	get_response = get_shop(shop_id)
-
-	assert get_response.status_code == 200
-	get_shop_data = get_response.json()
-	print(get_shop_data)
-
-	assert get_shop_data['name'] == payload['name']
-	assert get_shop_data['address'] == payload['address']
-
-
-def test_cat_update_shop():
-	payload = new_shop_payload
-	create_shop_response = create_shop(payload)
-	assert create_shop_response == 201
-	shop_id = create_shop_response.json()['id']
-
-	new_payload = {
-		"id": shop_id,
-		"name": "Narodnyi",
-		"latitude": 10,
-		"longitude": payload['longitude'],
-		"address": payload['address'],
-		"city": payload['city']
-	}
-	update_shop_response = update_shop(new_payload)
-	assert update_shop_response.status_code == 200
-
-	get_shop_response = get_shop(shop_id)
-	assert get_shop_response.status_code == 200
-	get_shop_data = get_shop_response.json()
-	print(get_shop_data)
-	assert get_shop_data['name'] == new_payload['name']
-	assert get_shop_data['latitude'] == new_payload['latitude']
+    
+@pytest.mark.asyncio
+async def test_create_shop(shop_data):
+    response = client.post("/shop/create/", json=shop_data)
+    assert response.status_code == 201
+    assert response.json()["status"] == "Ok"
+    assert response.json()["message"] == "Success save data"
 
 
-def create_shop(payload):
-	return requests.post(ENDPOINT + "/shop/create", json=json.dumps(payload))
+@pytest.mark.asyncio
+async def test_get_shops():
+    shop_data = {
+        "name": "test_name",
+        "latitude": 0,
+        "longitude": 0,
+        "address": "string",
+        "city": "string"
+    }
+    await ShopRepo.insert(Shop(**shop_data))
+    response = await client.get("/shop/")
+    json_response = json.loads(response.content)
+    assert json_response["code"] == 200
+    assert json_response["status"] == "Ok"
+    assert json_response["message"] == "Success retrieve all data"
+    assert json_response["result"]
+    assert json_response["result"][0]["name"] == shop_data["name"]
 
 
-def update_shop(payload):
-	return requests.post(ENDPOINT + "/shop/update", json=json.dumps(payload))
+
+@pytest.mark.asyncio
+async def test_get_particular_shop(shop_id):
+    response = await client.get(f"/shop/{shop_id}")
+    assert response.status_code == 200
+    json_response = json.loads(response.content)
+    assert json_response['code'] == 200
+    assert json_response['status'] == 'Ok'
+    assert json_response['message'] == 'Success retrieve data'
+  
+
+@pytest.mark.asyncio
+async def test_update_shop(shop_data):
+    shop = await test_create_shop(shop_data)
+    shop_id = str(shop['_id']['$oid'])
+    updated_data = {
+        "name": "updated_name",
+    }
+    response = await client.put(f"/shop/{shop_id}/", json=updated_data)
+    assert response.status_code == 200
+    json_response = json.loads(response.content)
+    assert json_response['status'] == 'Ok'
+    assert json_response['message'] == 'Success update data'
 
 
-def get_shop(shop_id):
-	return requests.get(ENDPOINT + f"/shop/{shop_id}")
-
-
-def new_shop_payload():
-	data = {
-		"id": "test shop",
-		"name": "Narodnyi",
-		"latitude": 12,
-		"longitude": 1,
-		"address": "Turusbekova",
-		"city": "Bishkek"
-	}
-	return data
+@pytest.mark.asyncio
+async def test_delete_shop():
+    shop_data = {
+        "name": "test_name",
+        "latitude": 0,
+        "longitude": 0,
+        "address": "string",
+        "city": "string"
+    }
+    create_response = await client.post("/shop/create", json=shop_data)
+    shop_id = create_response.json().get('_id')
+    response = await client.delete(f"/shop/{shop_id}")
+    assert response.status_code == 204
+    get_response = await client.get(f"/shop/{shop_id}")
+    assert get_response.status_code == 404

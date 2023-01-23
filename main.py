@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from geo.routes import router
+from geo import routes
 
 app = FastAPI()
 
@@ -8,4 +8,4 @@ app = FastAPI()
 async def Home():
 	return "Welcome"
 
-app.include_router(router)
+app.include_router(routes.router)

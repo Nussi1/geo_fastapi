@@ -39,3 +39,4 @@ websockets==10.4
 
 requests~=2.28.1
 jsonify~=0.5
+aiohttp==3.8.3
